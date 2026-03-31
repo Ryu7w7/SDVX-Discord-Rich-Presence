@@ -64,16 +64,28 @@ public:
       return false;
     }
 
-    // Read handshake response (we don't strictly need to parse it)
-    struct {
-      int32_t opcode;
-      int32_t length;
-    } header;
-    DWORD read = 0;
-    if (ReadFile(hPipe, &header, sizeof(header), &read, nullptr)) {
-      if (header.length > 0) {
-        std::vector<char> buf(header.length);
-        ReadFile(hPipe, buf.data(), header.length, &read, nullptr);
+    // Read handshake response (non-blocking)
+    DWORD bytesAvail = 0;
+    // Wait up to 100ms for a response, but don't hang if it doesn't come
+    for (int i = 0; i < 5; i++) {
+      if (PeekNamedPipe(hPipe, nullptr, 0, nullptr, &bytesAvail, nullptr) &&
+          bytesAvail >= 8) {
+        break;
+      }
+      Sleep(20);
+    }
+
+    if (bytesAvail >= 8) {
+      struct {
+        int32_t opcode;
+        int32_t length;
+      } header;
+      DWORD read = 0;
+      if (ReadFile(hPipe, &header, sizeof(header), &read, nullptr)) {
+        if (header.length > 0) {
+          std::vector<char> buf(header.length);
+          ReadFile(hPipe, buf.data(), header.length, &read, nullptr);
+        }
       }
     }
 
